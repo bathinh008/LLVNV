@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cổng Nhân Viên</title>
+<style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; margin: 0; padding: 0; }
+    
+    /* Header */
+    .header { background: #0078d4; color: white; padding: 20px; text-align: center; border-radius: 0 0 20px 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    .header h2 { margin: 0; font-size: 22px; }
+    .header p { margin: 5px 0 0; opacity: 0.9; }
+    .btn-logout { background: rgba(255,255,255,0.2); border: none; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-top: 10px; font-size: 12px; }
+
+    /* Container */
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+
+    /* Cards Số Dư */
+    .balance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
+    .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); text-align: center; }
+    .card h4 { margin: 0 0 5px; color: #666; font-size: 14px; }
+    .card .value { font-size: 24px; font-weight: bold; color: #333; }
+    .card.old { border-bottom: 3px solid #f1c40f; } /* Màu vàng cho năm cũ */
+    .card.new { border-bottom: 3px solid #2ecc71; } /* Màu xanh cho năm mới */
+
+    /* Form Đăng ký */
+    .action-box { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 25px; }
+    .action-box h3 { margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; color: #0078d4; }
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; margin-bottom: 5px; font-weight: 500; color: #444; }
+    .form-control { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+    .btn-submit { width: 100%; padding: 12px; background: #0078d4; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+    .btn-submit:active { transform: scale(0.98); }
+
+    /* Lịch sử */
+    .history-list { list-style: none; padding: 0; }
+    .history-item { background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #ddd; }
+    .history-item.st-Cho { border-left-color: #f39c12; }
+    .history-item.st-Duyet { border-left-color: #2ecc71; }
+    .h-date { font-weight: bold; display: block; }
+    .h-type { font-size: 12px; color: #666; background: #eee; padding: 2px 6px; border-radius: 4px; margin-left: 5px;}
+    .h-status { font-size: 12px; font-weight: bold; color: #888; }
+    
+    .btn-cancel { background: #e74c3c; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-top: 5px; }
+
+    /* Loading */
+    #loading { text-align: center; padding: 20px; color: #666; display: none; }
+</style>
+</head>
+<body>
+
+<div id="loginScreen" style="height: 100vh; display: flex; align-items: center; justify-content: center; background: #eef2f5;">
+    <div style="background: white; padding: 30px; border-radius: 12px; width: 300px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+        <h2 style="color: #0078d4;">NHÂN VIÊN</h2>
+        <input type="text" id="usernameInput" class="form-control" placeholder="Nhập Mã Nhân Viên (VD: SCC000001)" style="margin-bottom: 15px;" onkeypress="handleEnter(event)">
+        <button onclick="doLogin()" class="btn-submit">Truy Cập</button>
+    </div>
+</div>
+
+<div id="mainScreen" style="display: none;">
+    <div class="header">
+        <h2 id="dispName">Đang tải...</h2>
+        <p id="dispRole">...</p>
+        <button class="btn-logout" onclick="logout()">Thoát</button>
+    </div>
+
+    <div class="container">
+        <h3 style="margin-top:0; color: #444;">Số Dư Phép & Bù</h3>
+        <div class="balance-grid">
+            <div class="card old">
+                <h4>Phép Năm Cũ</h4>
+                <div class="value" id="valPOld">-</div>
+            </div>
+            <div class="card new">
+                <h4>Phép Năm Mới</h4>
+                <div class="value" id="valPNew">-</div>
+            </div>
+            <div class="card old">
+                <h4>Nghỉ Bù Cũ</h4>
+                <div class="value" id="valBOld">-</div>
+            </div>
+            <div class="card new">
+                <h4>Nghỉ Bù Mới</h4>
+                <div class="value" id="valBNew">-</div>
+            </div>
+            <div class="card" style="grid-column: span 2; background: #fff3cd; border-bottom: none;">
+                <h4 style="color: #d35400;">TỔNG NGÀY NGHỈ CÓ THỂ SỬ DỤNG</h4>
+                <div class="value" id="valTotal" style="color: #d35400;">-</div>
+            </div>
+        </div>
+
+        <div class="action-box">
+            <h3>📅 Đăng Ký Nghỉ</h3>
+            
+            <div class="form-group">
+                <label>Loại nghỉ</label>
+                <select id="reqType" class="form-control" onchange="toggleReasonType()">
+                    <option value="P">Nghỉ Phép (P)</option>
+                    <option value="P/2">Nghỉ Phép 0.5 (Sáng/Chiều)</option>
+                    <option value="NB">Nghỉ Bù (NB)</option>
+                    <option value="NB/2">Nghỉ Bù 0.5 (Sáng/Chiều)</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="groupNbSource" style="display:none; background: #e8f0fe; padding: 10px; border-radius: 8px;">
+                <label style="color:#1967d2; font-size: 14px;">Chọn ngày công muốn bù:</label>
+                <select id="reqNbSource" class="form-control" style="margin-top: 5px;">
+                    <option value="">-- Đang tải dữ liệu... --</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Ngày nghỉ mong muốn</label>
+                <input type="date" id="reqDate" class="form-control">
+            </div>
+            
+            <div class="form-group">
+                <label>Lý do / Ghi chú</label>
+                <input type="text" id="reqReason" class="form-control" placeholder="Nhập lý do...">
+            </div>
+            
+            <button onclick="submitRequest()" class="btn-submit">Gửi Yêu Cầu</button>
+        </div>
+
+        <h3 style="color: #444;">Lịch sử yêu cầu</h3>
+        <ul id="historyList" class="history-list">
+        </ul>
+    </div>
+</div>
+
+<div id="loading">Đang xử lý...</div>
+
+<script>
+    // CẤU HÌNH: Thay URL Web App của bạn vào đây
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxRJeVTiI0g1yp-ehdX_HCQpNog0aZ--HlYyqZ7qy6UWebJDVpwkqjLg3NDK56MwNSl/exec"; 
+    
+    // Kiểm tra đăng nhập
+    const savedUser = localStorage.getItem("empUser");
+    if (savedUser) {
+        showMain(savedUser);
+    }
+
+    function handleEnter(e) {
+        if (e.key === "Enter") doLogin();
+    }
+
+    function doLogin() {
+        const user = document.getElementById("usernameInput").value.trim();
+        if (!user) return alert("Vui lòng nhập mã nhân viên!");
+        localStorage.setItem("empUser", user);
+        showMain(user);
+    }
+
+    function logout() {
+        localStorage.removeItem("empUser");
+        location.reload();
+    }
+
+    function showMain(user) {
+        document.getElementById("loginScreen").style.display = "none";
+        document.getElementById("mainScreen").style.display = "block";
+        loadData(user);
+    }
+
+    async function loadData(user) {
+        document.getElementById("loading").style.display = "block";
+        try {
+            const res = await fetch(`${SCRIPT_URL}?action=getEmployeeDetail&code=${encodeURIComponent(user)}`);
+            const data = await res.json();
+            
+            if (!data.success) {
+                alert(data.message || "Lỗi tải dữ liệu");
+                logout(); return;
+            }
+
+            // Hiển thị thông tin
+            const info = data.info;
+            document.getElementById("dispName").innerText = info.name;
+            document.getElementById("dispRole").innerText = info.role;
+
+            const bal = data.balance;
+            document.getElementById("valPOld").innerText = bal.pOld;
+            document.getElementById("valPNew").innerText = bal.pNew;
+            document.getElementById("valBOld").innerText = bal.bOld;
+            document.getElementById("valBNew").innerText = bal.bNew;
+            document.getElementById("valTotal").innerText = (bal.pOld + bal.pNew + bal.bOld + bal.bNew);
+
+            // --- XỬ LÝ DANH SÁCH NGUỒN BÙ (MỚI) ---
+            let listNbSources = data.nbSources || [];
+            const selSource = document.getElementById("reqNbSource");
+            selSource.innerHTML = '<option value="">-- Chọn ngày công muốn bù (Tùy chọn) --</option>';
+            
+            listNbSources.forEach(src => {
+                const opt = document.createElement("option");
+                const label = `${src.date} - ${src.reason}`;
+                opt.value = label; 
+                opt.innerText = `${label} (Còn ${src.amount})`;
+                if (src.amount < 1) opt.style.color = "#d35400";
+                selSource.appendChild(opt);
+            });
+
+            // --- XỬ LÝ LỊCH SỬ ---
+            const list = document.getElementById("historyList");
+            list.innerHTML = "";
+            (data.history || []).forEach(h => {
+                let statusCls = "st-Cho";
+                let btnCancel = "";
+                
+                if(h.status === "Đã duyệt") statusCls = "st-Duyet";
+                
+                // Chỉ hiện nút Hủy nếu trạng thái là "Chờ duyệt"
+                if(h.status === "Chờ duyệt") {
+                    btnCancel = `<button class="btn-cancel" onclick="cancelRequest('${h.date}', '${h.type}')">Hủy Yêu Cầu</button>`;
+                }
+
+                list.innerHTML += `
+                    <li class="history-item ${statusCls}">
+                        <div>
+                            <span class="h-date">${h.date} <span class="h-type">${h.type}</span></span>
+                            <span style="font-size:13px; color:#555;">${h.reason}</span>
+                        </div>
+                        <div style="text-align:right;">
+                            <span class="h-status">${h.status}</span><br>
+                            ${btnCancel}
+                        </div>
+                    </li>`;
+            });
+
+        } catch(e) { console.error(e); alert("Lỗi kết nối!"); } 
+        finally { document.getElementById("loading").style.display = "none"; }
+    }
+
+    async function submitRequest() {
+        const user = localStorage.getItem("empUser");
+        const type = document.getElementById("reqType").value;
+        const date = document.getElementById("reqDate").value;
+        const name = document.getElementById("dispName").innerText;
+        
+        let reason = document.getElementById("reqReason").value.trim();
+        const sourceVal = document.getElementById("reqNbSource").value;
+
+        // Nếu có chọn nguồn bù, tự động điền vào lý do
+        if ((type === "NB" || type === "NB/2") && sourceVal) {
+            reason = `[Bù cho: ${sourceVal}] ` + reason;
+        }
+
+        if (!date) return alert("Chọn ngày nghỉ!");
+        if (!confirm(`Xác nhận đăng ký nghỉ ${type} vào ngày ${date}?`)) return;
+
+        const btn = document.querySelector(".btn-submit");
+        const oldText = btn.innerText;
+        btn.innerText = "Đang gửi..."; btn.disabled = true;
+
+        const payload = {
+            code: user,
+            name: name,
+            type: type,
+            date: date,
+            reason: reason 
+        };
+
+        try {
+            await fetch(`${SCRIPT_URL}?action=submitLeaveRequest&data=` + encodeURIComponent(JSON.stringify(payload)));
+            alert("Đã gửi yêu cầu thành công!");
+            document.getElementById("reqDate").value = "";
+            document.getElementById("reqReason").value = "";
+            document.getElementById("reqNbSource").value = ""; // Reset
+            loadData(user);
+        } catch(e) {
+            alert("Lỗi khi gửi!");
+        } finally {
+            btn.innerText = oldText; btn.disabled = false;
+        }
+    }
+
+    // Hàm Hủy Yêu Cầu
+    async function cancelRequest(dateStr, typeStr) {
+        if(!confirm("Bạn chắc chắn muốn hủy yêu cầu này?")) return;
+        
+        const user = localStorage.getItem("empUser");
+        document.getElementById("loading").style.display = "block";
+        
+        try {
+            const res = await fetch(`${SCRIPT_URL}?action=cancelLeaveRequest&code=${user}&date=${encodeURIComponent(dateStr)}&type=${encodeURIComponent(typeStr)}`);
+            const json = await res.json();
+            alert(json.message);
+            loadData(user); // Tải lại danh sách
+        } catch(e) {
+            alert("Lỗi kết nối!");
+        } finally {
+            document.getElementById("loading").style.display = "none";
+        }
+    }
+
+    function toggleReasonType() {
+        const type = document.getElementById("reqType").value;
+        const group = document.getElementById("groupNbSource");
+        if (type === "NB" || type === "NB/2") {
+            group.style.display = "block";
+        } else {
+            group.style.display = "none";
+            document.getElementById("reqNbSource").value = ""; 
+        }
+    }
+</script>
+
+</body>
+</html>
