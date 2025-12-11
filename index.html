@@ -3,48 +3,61 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cổng Nhân Viên</title>
+<title>CỔNG NHÂN VIÊN</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
+    /* CSS GIỮ NGUYÊN NHƯ CŨ */
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; margin: 0; padding: 0; }
-    
-    /* Header */
     .header { background: #0078d4; color: white; padding: 20px; text-align: center; border-radius: 0 0 20px 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
     .header h2 { margin: 0; font-size: 22px; }
     .header p { margin: 5px 0 0; opacity: 0.9; }
     .btn-logout { background: rgba(255,255,255,0.2); border: none; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-top: 10px; font-size: 12px; }
-
-    /* Container */
+    
     .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-
-    /* Cards Số Dư */
     .balance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
     .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); text-align: center; }
     .card h4 { margin: 0 0 5px; color: #666; font-size: 14px; }
     .card .value { font-size: 24px; font-weight: bold; color: #333; }
-    .card.old { border-bottom: 3px solid #f1c40f; } /* Màu vàng cho năm cũ */
-    .card.new { border-bottom: 3px solid #2ecc71; } /* Màu xanh cho năm mới */
-
-    /* Form Đăng ký */
+    .card.old { border-bottom: 3px solid #f1c40f; }
+    .card.new { border-bottom: 3px solid #2ecc71; }
+    
     .action-box { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 25px; }
     .action-box h3 { margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; color: #0078d4; }
     .form-group { margin-bottom: 15px; }
     .form-group label { display: block; margin-bottom: 5px; font-weight: 500; color: #444; }
     .form-control { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+    
+    .date-row { display: flex; gap: 15px; }
+    .date-col { flex: 1; }
+
+    .source-list-container { max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; background: white; }
+    .source-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; }
+    .source-item:last-child { border-bottom: none; }
+    .source-item:hover { background: #f9f9f9; }
+    .source-item input { margin-right: 10px; transform: scale(1.2); cursor: pointer; }
+    .source-info { display: flex; flex-direction: column; }
+    .source-date { font-weight: bold; color: #2c3e50; font-size: 14px; }
+    .source-val { font-size: 12px; color: #27ae60; font-weight: 600; }
+    
+    .source-summary { margin-top: 5px; font-size: 13px; font-weight: bold; text-align: right; }
+    .status-ok { color: #27ae60; }
+    .status-lack { color: #e74c3c; }
+
+    .calc-info { background: #f0f9ff; padding: 10px; border-radius: 8px; color: #0078d4; font-size: 14px; margin-bottom: 15px; border: 1px dashed #0078d4; display: none; }
+
     .btn-submit { width: 100%; padding: 12px; background: #0078d4; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; }
     .btn-submit:active { transform: scale(0.98); }
-
-    /* Lịch sử */
+    
     .history-list { list-style: none; padding: 0; }
     .history-item { background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #ddd; }
     .history-item.st-Cho { border-left-color: #f39c12; }
     .history-item.st-Duyet { border-left-color: #2ecc71; }
+    .history-item.st-TuChoi { border-left-color: #e74c3c; }
     .h-date { font-weight: bold; display: block; }
     .h-type { font-size: 12px; color: #666; background: #eee; padding: 2px 6px; border-radius: 4px; margin-left: 5px;}
     .h-status { font-size: 12px; font-weight: bold; color: #888; }
-    
     .btn-cancel { background: #e74c3c; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-top: 5px; }
-
-    /* Loading */
+    
     #loading { text-align: center; padding: 20px; color: #666; display: none; }
 </style>
 </head>
@@ -52,8 +65,8 @@
 
 <div id="loginScreen" style="height: 100vh; display: flex; align-items: center; justify-content: center; background: #eef2f5;">
     <div style="background: white; padding: 30px; border-radius: 12px; width: 300px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-        <h2 style="color: #0078d4;">NHÂN VIÊN</h2>
-        <input type="text" id="usernameInput" class="form-control" placeholder="Nhập Mã Nhân Viên (VD: SCC000001)" style="margin-bottom: 15px;" onkeypress="handleEnter(event)">
+        <h2 style="color: #0078d4;">CỔNG NHÂN VIÊN</h2>
+        <input type="text" id="usernameInput" class="form-control" placeholder="Nhập Mã Nhân Viên (VD: NV01)" style="margin-bottom: 15px;" onkeypress="handleEnter(event)">
         <button onclick="doLogin()" class="btn-submit">Truy Cập</button>
     </div>
 </div>
@@ -66,27 +79,18 @@
     </div>
 
     <div class="container">
-        <h3 style="margin-top:0; color: #444;">Số Dư Phép & Bù</h3>
+        <h3 style="margin-top:0; color: #444;">Số Dư phép/bù Năm <span id="currentYearDisp"></span></h3>
         <div class="balance-grid">
-            <div class="card old">
-                <h4>Phép Năm Cũ</h4>
-                <div class="value" id="valPOld">-</div>
-            </div>
-            <div class="card new">
-                <h4>Phép Năm Mới</h4>
-                <div class="value" id="valPNew">-</div>
-            </div>
-            <div class="card old">
-                <h4>Nghỉ Bù Cũ</h4>
-                <div class="value" id="valBOld">-</div>
-            </div>
-            <div class="card new">
-                <h4>Nghỉ Bù Mới</h4>
-                <div class="value" id="valBNew">-</div>
-            </div>
+            <!-- <div class="card old"> <h4 id="lblPOld">Phép Năm Cũ</h4> <div class="value" id="valPOld">-</div> </div>
+            <div class="card new"> <h4 id="lblPNew">Phép Năm Mới</h4> <div class="value" id="valPNew">-</div> </div>
+            <div class="card old"> <h4 id="lblBOld">Nghỉ Bù Cũ</h4> <div class="value" id="valBOld">-</div> </div>
+            <div class="card new"> <h4 id="lblBNew">Nghỉ Bù Mới</h4> <div class="value" id="valBNew">-</div> </div> -->
+			<div class="card old" id="cardPOld"> <h4 id="lblPOld">Phép Năm Cũ</h4> <div class="value" id="valPOld">-</div> </div>
+			<div class="card new"> <h4 id="lblPNew">Phép Năm Mới</h4> <div class="value" id="valPNew">-</div> </div>
+			<div class="card old" id="cardBOld"> <h4 id="lblBOld">Nghỉ Bù Cũ</h4> <div class="value" id="valBOld">-</div> </div>
+			<div class="card new"> <h4 id="lblBNew">Nghỉ Bù Mới</h4> <div class="value" id="valBNew">-</div> </div>
             <div class="card" style="grid-column: span 2; background: #fff3cd; border-bottom: none;">
-                <h4 style="color: #d35400;">TỔNG NGÀY NGHỈ CÓ THỂ SỬ DỤNG</h4>
-                <div class="value" id="valTotal" style="color: #d35400;">-</div>
+                <h4 style="color: #d35400;">TỔNG PHÉP/BÙ CÓ THỂ SỬ DỤNG</h4> <div class="value" id="valTotal" style="color: #d35400;">-</div>
             </div>
         </div>
 
@@ -95,214 +99,621 @@
             
             <div class="form-group">
                 <label>Loại nghỉ</label>
-                <select id="reqType" class="form-control" onchange="toggleReasonType()">
-                    <option value="P">Nghỉ Phép (P)</option>
+                <select id="reqType" class="form-control" onchange="calcTotalDays()">
+                    <option value="P">Nghỉ Phép (1.0 ngày)</option>
                     <option value="P/2">Nghỉ Phép 0.5 (Sáng/Chiều)</option>
-                    <option value="NB">Nghỉ Bù (NB)</option>
+                    <option value="NB">Nghỉ Bù (1.0 ngày)</option>
                     <option value="NB/2">Nghỉ Bù 0.5 (Sáng/Chiều)</option>
                 </select>
             </div>
 
-            <div class="form-group" id="groupNbSource" style="display:none; background: #e8f0fe; padding: 10px; border-radius: 8px;">
-                <label style="color:#1967d2; font-size: 14px;">Chọn ngày công muốn bù:</label>
-                <select id="reqNbSource" class="form-control" style="margin-top: 5px;">
-                    <option value="">-- Đang tải dữ liệu... --</option>
-                </select>
+            <div class="form-group" id="groupNbSource" style="display:none; background: #e8f0fe; padding: 15px; border-radius: 8px;">
+                <label style="color:#1967d2; font-size: 14px; margin-bottom:10px;">Chọn nguồn công để bù (Bắt buộc phải <b>BẰNG</b> số ngày nghỉ):</label>
+                <div id="sourceList" class="source-list-container"><div style="padding:10px; text-align:center;">Đang tải...</div></div>
+                <div id="sourceSummary" class="source-summary status-lack">...</div>
             </div>
 
             <div class="form-group">
-                <label>Ngày nghỉ mong muốn</label>
-                <input type="date" id="reqDate" class="form-control">
+                <div class="date-row">
+                    <div class="date-col">
+                        <label>Từ ngày</label>
+                        <input type="date" id="reqStartDate" class="form-control" onchange="calcTotalDays()">
+                    </div>
+                    <div class="date-col">
+                        <label>Đến ngày</label>
+                        <input type="date" id="reqEndDate" class="form-control" onchange="calcTotalDays()">
+                    </div>
+                </div>
             </div>
             
+            <div id="calcInfo" class="calc-info"></div>
+
             <div class="form-group">
                 <label>Lý do / Ghi chú</label>
-                <input type="text" id="reqReason" class="form-control" placeholder="Nhập lý do...">
+                <input type="text" id="reqReason" class="form-control" placeholder="Nhập lý do (VD: Về quê, Đám cưới...)">
             </div>
             
             <button onclick="submitRequest()" class="btn-submit">Gửi Yêu Cầu</button>
         </div>
 
         <h3 style="color: #444;">Lịch sử yêu cầu</h3>
-        <ul id="historyList" class="history-list">
-        </ul>
-    </div>
-</div>
+		<ul id="historyList" class="history-list"></ul>
+
+		<div id="viewMoreContainer" style="text-align: center; margin-bottom: 20px; display: none;">
+			<button onclick="renderHistory(globalHistoryData, true)" style="background: white; border: 1px solid #0078d4; color: #0078d4; padding: 8px 15px; border-radius: 20px; cursor: pointer; font-size: 13px;">
+				↓ Xem toàn bộ lịch sử cũ hơn
+			</button>
+		</div>
+			</div>
+		</div>
 
 <div id="loading">Đang xử lý...</div>
 
 <script>
-    // CẤU HÌNH: Thay URL Web App của bạn vào đây
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxRJeVTiI0g1yp-ehdX_HCQpNog0aZ--HlYyqZ7qy6UWebJDVpwkqjLg3NDK56MwNSl/exec"; 
+    const SUPABASE_URL = 'https://renqusdcczlhrglbclhe.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlbnF1c2RjY3psaHJnbGJjbGhlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwMTIyMzUsImV4cCI6MjA4MDU4ODIzNX0.kF960FS-VvAM2rkNo9kVHfmGAkpwrmlZ5Vf9-QFiC2E';
     
-    // Kiểm tra đăng nhập
-    const savedUser = localStorage.getItem("empUser");
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    
+    // BIẾN LƯU TRỮ TẠM
+    let globalNeededTotal = 0; // Tổng số công cần
+	let globalHistoryData = []; // [THÊM MỚI] Biến lưu full lịch sử
+
+    // --- KHỞI TẠO ---
+    const savedUser = sessionStorage.getItem("empUser");
     if (savedUser) {
-        showMain(savedUser);
+        document.getElementById("loginScreen").style.display = "none";
+        document.getElementById("mainScreen").style.display = "block";
+        loadData(savedUser);
+        setupRealtimeListener(savedUser);
     }
 
-    function handleEnter(e) {
-        if (e.key === "Enter") doLogin();
-    }
+    function handleEnter(e) { if (e.key === "Enter") doLogin(); }
 
-    function doLogin() {
-        const user = document.getElementById("usernameInput").value.trim();
-        if (!user) return alert("Vui lòng nhập mã nhân viên!");
-        localStorage.setItem("empUser", user);
-        showMain(user);
+    async function doLogin() {
+        const userCode = document.getElementById("usernameInput").value.trim().toUpperCase();
+        if (!userCode) return alert("Vui lòng nhập mã!");
+
+        document.getElementById("loading").style.display = "block";
+        
+        // [THAY ĐỔI] Lấy thêm cột 'status' và 'name'
+        const { data, error } = await _supabase
+            .from('employees')
+            .select('code, name, status') // Lấy thêm status
+            .eq('code', userCode)
+            .single();
+            
+        document.getElementById("loading").style.display = "none";
+
+        if (error || !data) { 
+            alert("Mã nhân viên không tồn tại!"); 
+            return; 
+        }
+
+        // [THÊM MỚI] Kiểm tra trạng thái hoạt động
+        if (data.status === 'inactive') {
+            alert(`Tài khoản của nhân viên ${data.name} đã bị vô hiệu hóa (Đã nghỉ việc).`);
+            return;
+        }
+
+        sessionStorage.setItem("empUser", userCode);
+        document.getElementById("loginScreen").style.display = "none";
+        document.getElementById("mainScreen").style.display = "block";
+        loadData(userCode);
+        setupRealtimeListener(userCode);
     }
 
     function logout() {
-        localStorage.removeItem("empUser");
+        sessionStorage.removeItem("empUser");
         location.reload();
     }
 
-    function showMain(user) {
-        document.getElementById("loginScreen").style.display = "none";
-        document.getElementById("mainScreen").style.display = "block";
-        loadData(user);
-    }
-
-    async function loadData(user) {
+    // --- TẢI DỮ LIỆU ---
+    // --- TẢI DỮ LIỆU (ĐÃ CẬP NHẬT LOGIC HẾT HẠN) ---
+    async function loadData(userCode) {
         document.getElementById("loading").style.display = "block";
         try {
-            const res = await fetch(`${SCRIPT_URL}?action=getEmployeeDetail&code=${encodeURIComponent(user)}`);
-            const data = await res.json();
-            
-            if (!data.success) {
-                alert(data.message || "Lỗi tải dữ liệu");
-                logout(); return;
+            // BƯỚC 1: Lấy tuần làm việc mới nhất
+            const weekRes = await _supabase.from('weeks')
+                .select('week_start')
+                .eq('group_name', 'Gia dụng') 
+                .order('week_start', { ascending: false })
+                .limit(1)
+                .single();
+
+            // Xác định ngày hiện tại của hệ thống và Năm mục tiêu
+            let systemCurrentDate = new Date(); 
+            let targetYear = new Date().getFullYear(); 
+
+            if (weekRes.data && weekRes.data.week_start) {
+                systemCurrentDate = new Date(weekRes.data.week_start); // Ngày mốc để so sánh hạn
+                targetYear = systemCurrentDate.getFullYear();
             }
 
-            // Hiển thị thông tin
-            const info = data.info;
-            document.getElementById("dispName").innerText = info.name;
-            document.getElementById("dispRole").innerText = info.role;
+            console.log("Hệ thống đang chạy theo dữ liệu tuần:", weekRes.data?.week_start);
 
-            const bal = data.balance;
-            document.getElementById("valPOld").innerText = bal.pOld;
-            document.getElementById("valPNew").innerText = bal.pNew;
-            document.getElementById("valBOld").innerText = bal.bOld;
-            document.getElementById("valBNew").innerText = bal.bNew;
-            document.getElementById("valTotal").innerText = (bal.pOld + bal.pNew + bal.bOld + bal.bNew);
+            // BƯỚC 2: Tải các dữ liệu còn lại
+            const [empRes, balRes, histRes, sourceRes] = await Promise.all([
+                _supabase.from('employees').select('*').eq('code', userCode).single(),
+                _supabase.from('leave_balance').select('*').eq('emp_code', userCode).eq('year', targetYear).maybeSingle(), 
+                _supabase.from('leave_requests').select('*').eq('emp_code', userCode).order('created_at', { ascending: false }),
+                _supabase.from('supplemental_leave').select('*').eq('emp_code', userCode).eq('type', 'NB').gt('amount', 0)
+            ]);
 
-            // --- XỬ LÝ DANH SÁCH NGUỒN BÙ (MỚI) ---
-            let listNbSources = data.nbSources || [];
-            const selSource = document.getElementById("reqNbSource");
-            selSource.innerHTML = '<option value="">-- Chọn ngày công muốn bù (Tùy chọn) --</option>';
-            
-            listNbSources.forEach(src => {
-                const opt = document.createElement("option");
-                const label = `${src.date} - ${src.reason}`;
-                opt.value = label; 
-                opt.innerText = `${label} (Còn ${src.amount})`;
-                if (src.amount < 1) opt.style.color = "#d35400";
-                selSource.appendChild(opt);
-            });
-
-            // --- XỬ LÝ LỊCH SỬ ---
-            const list = document.getElementById("historyList");
-            list.innerHTML = "";
-            (data.history || []).forEach(h => {
-                let statusCls = "st-Cho";
-                let btnCancel = "";
+			// [THÊM MỚI] CHECK LẠI TRẠNG THÁI NGAY KHI TẢI
+            if (empRes.data) {
+                if (empRes.data.status === 'inactive') {
+                    alert("Tài khoản của bạn đã bị vô hiệu hóa.");
+                    logout(); // Tự động đăng xuất luôn
+                    return;
+                }
                 
-                if(h.status === "Đã duyệt") statusCls = "st-Duyet";
-                
-                // Chỉ hiện nút Hủy nếu trạng thái là "Chờ duyệt"
-                if(h.status === "Chờ duyệt") {
-                    btnCancel = `<button class="btn-cancel" onclick="cancelRequest('${h.date}', '${h.type}')">Hủy Yêu Cầu</button>`;
+                document.getElementById("dispName").innerText = empRes.data.name;
+                document.getElementById("dispRole").innerText = empRes.data.role || "Nhân viên";
+            }
+
+            // 2. Hiển thị thông tin nhân viên
+            if (empRes.data) {
+                document.getElementById("dispName").innerText = empRes.data.name;
+                document.getElementById("dispRole").innerText = empRes.data.role || "Nhân viên";
+            }
+
+            // 3. XỬ LÝ SỐ DƯ (LOGIC MỚI Ở ĐÂY)
+            let pOld = 0, pNew = 0, bOld = 0, bNew = 0;
+
+            if (balRes.data) {
+                pNew = Number(balRes.data.pn_val) || 0;     
+                bNew = Number(balRes.data.nb_val) || 0;     
+                pOld = Number(balRes.data.pn_old_val) || 0; 
+                bOld = Number(balRes.data.nb_old_val) || 0; 
+            }
+
+            // --- ĐOẠN CODE THÊM MỚI ĐỂ XỬ LÝ HẾT HẠN ---
+            if (empRes.data) {
+                // Lấy ngày hết hạn từ thông tin nhân viên
+                // Lưu ý: Cần đảm bảo trong bảng 'employees' có cột 'pn_expire' và 'nb_expire'
+                const pnExpireDate = empRes.data.pn_expire ? new Date(empRes.data.pn_expire) : null;
+                const nbExpireDate = empRes.data.nb_expire ? new Date(empRes.data.nb_expire) : null;
+
+                // Logic 1: Nếu tuần hiện tại > hạn phép năm -> Phép năm cũ = 0
+                if (pnExpireDate && systemCurrentDate > pnExpireDate) {
+                    console.log(`Đã quá hạn phép năm (${empRes.data.pn_expire}). Reset phép cũ về 0.`);
+                    pOld = 0;
                 }
 
-                list.innerHTML += `
-                    <li class="history-item ${statusCls}">
-                        <div>
-                            <span class="h-date">${h.date} <span class="h-type">${h.type}</span></span>
-                            <span style="font-size:13px; color:#555;">${h.reason}</span>
-                        </div>
-                        <div style="text-align:right;">
-                            <span class="h-status">${h.status}</span><br>
-                            ${btnCancel}
-                        </div>
-                    </li>`;
+                // Logic 2: Nếu tuần hiện tại > hạn nghỉ bù -> Bù năm cũ = 0
+                if (nbExpireDate && systemCurrentDate > nbExpireDate) {
+                    console.log(`Đã quá hạn nghỉ bù (${empRes.data.nb_expire}). Reset bù cũ về 0.`);
+                    bOld = 0;
+                }
+            }
+            // ---------------------------------------------
+
+            // Cập nhật nhãn hiển thị
+            document.getElementById("currentYearDisp").innerText = targetYear;
+            document.getElementById("lblPOld").innerText = `Phép ${targetYear - 1}`;
+            document.getElementById("lblPNew").innerText = `Phép ${targetYear}`;
+            document.getElementById("lblBOld").innerText = `Bù ${targetYear - 1}`;
+            document.getElementById("lblBNew").innerText = `Bù ${targetYear}`;
+
+            // 4. TRỪ ĐI CÁC ĐƠN "CHỜ DUYỆT"
+            let pendingP = 0;
+            let pendingNB = 0;
+
+            if (histRes.data) {
+                histRes.data.forEach(req => {
+                    if (req.status === 'Chờ duyệt') {
+                        let val = req.val || (req.type.includes("/2") ? 0.5 : 1.0);
+                        if (req.type.startsWith("P")) pendingP += val;
+                        if (req.type.startsWith("NB")) pendingNB += val;
+                    }
+                });
+            }
+
+            // Logic trừ hiển thị (không thay đổi)
+            let displayPOld = pOld;
+            let displayPNew = pNew;
+            if (displayPOld >= pendingP) {
+                displayPOld -= pendingP;
+            } else {
+                let remain = pendingP - displayPOld;
+                displayPOld = 0;
+                displayPNew = Math.max(0, displayPNew - remain);
+            }
+
+            let displayBOld = bOld;
+            let displayBNew = bNew;
+            if (displayBOld >= pendingNB) {
+                displayBOld -= pendingNB;
+            } else {
+                let remain = pendingNB - displayBOld;
+                displayBOld = 0;
+                displayBNew = Math.max(0, displayBNew - remain);
+            }
+
+            // 5. GÁN SỐ LIỆU LÊN GIAO DIỆN
+            /*document.getElementById("valPOld").innerText = parseFloat(displayPOld.toFixed(2));
+            document.getElementById("valPNew").innerText = parseFloat(displayPNew.toFixed(2));
+            document.getElementById("valBOld").innerText = parseFloat(displayBOld.toFixed(2));
+            document.getElementById("valBNew").innerText = parseFloat(displayBNew.toFixed(2));*/
+            
+			// Gán giá trị hiển thị
+			document.getElementById("valPOld").innerText = parseFloat(displayPOld.toFixed(1));
+			document.getElementById("valPNew").innerText = parseFloat(displayPNew.toFixed(1));
+			document.getElementById("valBOld").innerText = parseFloat(displayBOld.toFixed(1));
+			document.getElementById("valBNew").innerText = parseFloat(displayBNew.toFixed(1));
+
+			// --- LOGIC ẨN/HIỆN THẺ NĂM CŨ KHI GIÁ TRỊ = 0 ---
+			
+			// Ẩn/Hiện Phép Năm Cũ
+			const cardPOld = document.getElementById("cardPOld");
+			if (cardPOld) {
+				// Nếu > 0 thì hiển thị (reset style), nếu = 0 thì ẩn đi
+				cardPOld.style.display = (displayPOld > 0) ? '' : 'none';
+			}
+			
+			// Ẩn/Hiện Bù Năm Cũ
+			const cardBOld = document.getElementById("cardBOld");
+			if (cardBOld) {
+				// Nếu > 0 thì hiển thị (reset style), nếu = 0 thì ẩn đi
+				cardBOld.style.display = (displayBOld > 0) ? '' : 'none';
+			}
+			
+            const grandTotal = displayPOld + displayPNew + displayBOld + displayBNew;
+            document.getElementById("valTotal").innerText = parseFloat(grandTotal.toFixed(2));
+            
+            if (pendingP > 0 || pendingNB > 0) {
+                document.getElementById("valTotal").style.color = "#f39c12"; 
+                document.getElementById("valTotal").title = `Đang có ${pendingP + pendingNB} công chờ duyệt`;
+            } else {
+                document.getElementById("valTotal").style.color = "#d35400";
+            }
+
+            // 6. RENDER CHECKLIST (Giữ nguyên phần còn lại)
+            const listDiv = document.getElementById("sourceList");
+            listDiv.innerHTML = "";
+            
+            if(sourceRes.data && sourceRes.data.length > 0) {
+                sourceRes.data.forEach(src => {
+                    let usedAmount = 0;
+                    const d = new Date(src.date);
+                    const dStr = `${d.getDate()}/${d.getMonth()+1}`;
+                    const signature = `${dStr} (${src.reason})`;
+
+                    if (histRes.data) {
+                        histRes.data.forEach(req => {
+                            if (req.status !== 'Từ chối' && req.reason && req.reason.includes(signature)) {
+                                if (req.type === 'NB/2' || req.type.includes("0.5")) usedAmount += 0.5;
+                                else if (req.type === 'NB') usedAmount += 1.0;
+                            }
+                        });
+                    }
+
+                    const remaining = parseFloat(src.amount) - usedAmount;
+                    
+                    if (remaining > 0) {
+                        const item = document.createElement("div");
+                        item.className = "source-item";
+                        item.onclick = function(e) {
+                            if (e.target.type !== 'checkbox') {
+                                const cb = this.querySelector('input');
+                                cb.checked = !cb.checked;
+                                calcTotalDays(); 
+                            }
+                        };
+                        const valDisplay = remaining < 1 ? `Còn: ${remaining} (Ít)` : `Còn: ${remaining}`;
+                        const colorStyle = remaining < 1 ? "color:#e67e22;" : "color:#27ae60;";
+
+                        item.innerHTML = `
+                            <div style="display:flex; align-items:center;">
+                                <input type="checkbox" class="src-cb" value="${signature}" data-amt="${remaining}" onchange="calcTotalDays()">
+                                <div class="source-info">
+                                    <span class="source-date">${dStr} - ${src.reason}</span>
+                                    <span class="source-val" style="${colorStyle}">${valDisplay}</span>
+                                </div>
+                            </div>
+                        `;
+                        listDiv.appendChild(item);
+                    }
+                });
+            } else {
+                listDiv.innerHTML = '<div style="padding:15px; text-align:center; color:#999;">Bạn không có ngày công bù nào khả dụng.</div>';
+            }
+            
+            // Lưu dữ liệu vào biến toàn cục
+            globalHistoryData = histRes.data || [];
+            // Gọi hàm render với tham số false (nghĩa là chưa xem full, chỉ hiện 5)
+            renderHistory(globalHistoryData, false);
+            calcTotalDays();
+
+        } catch(e) { 
+            console.error(e); 
+            alert("Lỗi tải dữ liệu: " + e.message);
+        } finally { 
+            document.getElementById("loading").style.display = "none"; 
+        }
+    }
+
+    function renderHistory(data, isFullView) {
+        const list = document.getElementById("historyList");
+        const btnContainer = document.getElementById("viewMoreContainer");
+        list.innerHTML = "";
+        
+        if (!data || data.length === 0) {
+            list.innerHTML = "<div style='text-align:center; color:#999; padding:10px;'>Chưa có lịch sử.</div>";
+            btnContainer.style.display = "none";
+            return;
+        }
+
+        // --- CẤU HÌNH LOGIC HIỂN THỊ ---
+        let displayData = data;
+        const limit = 5;
+        
+        // Style chung cho nút bấm (để đồng bộ giao diện)
+        const btnStyle = "background: white; border: 1px solid #0078d4; color: #0078d4; padding: 8px 15px; border-radius: 20px; cursor: pointer; font-size: 13px;";
+
+        if (data.length > limit) {
+            btnContainer.style.display = "block"; // Luôn hiện container nếu > 5 dòng
+
+            if (!isFullView) {
+                // TRƯỜNG HỢP 1: CHƯA XEM FULL -> Cắt 5 dòng, hiện nút Xem thêm
+                displayData = data.slice(0, limit);
+                btnContainer.innerHTML = `
+                    <button onclick="renderHistory(globalHistoryData, true)" style="${btnStyle}">
+                        ↓ Xem toàn bộ lịch sử cũ hơn (${data.length - limit} còn lại)
+                    </button>`;
+            } else {
+                // TRƯỜNG HỢP 2: ĐANG XEM FULL -> Hiện hết, hiện nút Thu gọn
+                displayData = data; 
+                btnContainer.innerHTML = `
+                    <button onclick="renderHistory(globalHistoryData, false)" style="${btnStyle}">
+                        ↑ Thu gọn danh sách
+                    </button>`;
+            }
+        } else {
+            // Ít hơn 5 dòng thì ẩn nút đi
+            btnContainer.style.display = "none";
+        }
+
+        // --- VẼ DANH SÁCH ---
+        displayData.forEach(h => {
+            let statusCls = "st-Cho";
+            let btnCancel = "";
+            let stText = h.status;
+
+            if(h.status === "Đã duyệt") statusCls = "st-Duyet";
+            if(h.status === "Từ chối") { statusCls = "st-TuChoi"; stText = "Đã từ chối"; }
+            if(h.status === "Chờ duyệt") btnCancel = `<button class="btn-cancel" onclick="cancelRequest(${h.id})">Hủy Yêu Cầu</button>`;
+
+            const d = new Date(h.date);
+            const dateStr = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+
+            list.innerHTML += `
+                <li class="history-item ${statusCls}">
+                    <div>
+                        <span class="h-date">${dateStr} <span class="h-type">${h.type}</span></span>
+                        <span style="font-size:13px; color:#555;">${h.reason || ''}</span>
+                    </div>
+                    <div style="text-align:right;">
+                        <span class="h-status">${stText}</span><br>
+                        ${btnCancel}
+                    </div>
+                </li>`;
+        });
+    }
+
+    // --- HÀM TÍNH TOÁN ---
+    function calcTotalDays() {
+        const type = document.getElementById("reqType").value;
+        const startStr = document.getElementById("reqStartDate").value;
+        const endStr = document.getElementById("reqEndDate").value;
+        const infoDiv = document.getElementById("calcInfo");
+        const groupNb = document.getElementById("groupNbSource");
+        
+        // 1. Ẩn/Hiện Checklist
+        if (type.startsWith("NB")) {
+            groupNb.style.display = "block";
+        } else {
+            groupNb.style.display = "none";
+            document.querySelectorAll(".src-cb").forEach(cb => cb.checked = false); 
+        }
+
+        // 2. Tính số ngày
+        if (!startStr) {
+            infoDiv.style.display = "none";
+            globalNeededTotal = 0;
+            updateSourceStatus(0);
+            return;
+        }
+
+        const d1 = new Date(startStr);
+        const d2 = endStr ? new Date(endStr) : new Date(startStr);
+
+        if (d2 < d1) {
+            infoDiv.style.display = "block"; infoDiv.innerText = "⚠️ Ngày kết thúc không được nhỏ hơn ngày bắt đầu!"; infoDiv.style.color = "red";
+            globalNeededTotal = 0; return;
+        }
+
+        const diffTime = Math.abs(d2 - d1);
+        const dayCount = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; 
+        const valPerDay = type.includes("/2") ? 0.5 : 1.0;
+        globalNeededTotal = dayCount * valPerDay;
+
+        // 3. Hiển thị
+        infoDiv.style.display = "block";
+        infoDiv.style.color = "#0078d4";
+        infoDiv.innerHTML = `⏳ Bạn chọn <b>${dayCount} ngày</b>. <br>💰 Tổng trừ: <b>${globalNeededTotal}</b> công (${type}).`;
+
+        // 4. Update màu sắc Checklist
+        if (type.startsWith("NB")) {
+            updateSourceStatus(globalNeededTotal);
+        }
+    }
+
+    function updateSourceStatus(needed) {
+        const sumDiv = document.getElementById("sourceSummary");
+        if(needed === 0) { sumDiv.innerText=""; return; }
+
+        let selected = 0;
+        document.querySelectorAll(".src-cb:checked").forEach(cb => {
+            selected += parseFloat(cb.getAttribute("data-amt"));
+        });
+
+        if(selected === needed) {
+            sumDiv.innerHTML = `✅ Đã chọn: ${selected} / Cần: ${needed} (Hợp lệ)`;
+            sumDiv.className = "source-summary status-ok";
+        } else if (selected > needed) {
+            sumDiv.innerHTML = `⚠️ Dư: ${selected} / Cần: ${needed} (Bỏ bớt đi)`;
+            sumDiv.className = "source-summary status-lack";
+        } else {
+            sumDiv.innerHTML = `❌ Thiếu: ${selected} / Cần: ${needed} (Chọn thêm)`;
+            sumDiv.className = "source-summary status-lack";
+        }
+    }
+
+    // --- GỬI YÊU CẦU ---
+    async function submitRequest() {
+        const userCode = sessionStorage.getItem("empUser");
+        const empName = document.getElementById("dispName").innerText;
+        const type = document.getElementById("reqType").value;
+        const startStr = document.getElementById("reqStartDate").value;
+        const endStr = document.getElementById("reqEndDate").value || startStr;
+        let reasonInput = document.getElementById("reqReason").value.trim();
+
+        if (!startStr) return alert("Vui lòng chọn ngày bắt đầu!");
+        if (globalNeededTotal <= 0) return alert("Ngày không hợp lệ!");
+
+        // Kiểm tra số dư
+        const pTotal = parseFloat(document.getElementById("valTotal").innerText);
+        const bOld = parseFloat(document.getElementById("valBOld").innerText) || 0;
+        const bNew = parseFloat(document.getElementById("valBNew").innerText) || 0;
+        const bTotal = bOld + bNew;
+        const pOld = parseFloat(document.getElementById("valPOld").innerText) || 0;
+        const pNew = parseFloat(document.getElementById("valPNew").innerText) || 0;
+        const pnTotal = pOld + pNew;
+
+        if (type.startsWith("P") && pnTotal < globalNeededTotal) {
+            return alert(`Số dư Phép (${pnTotal}) không đủ để nghỉ ${globalNeededTotal} công.`);
+        }
+        if (type.startsWith("NB") && bTotal < globalNeededTotal) {
+            return alert(`Số dư Bù (${bTotal}) không đủ để nghỉ ${globalNeededTotal} công.`);
+        }
+
+        // --- KIỂM TRA LOGIC NGUỒN BÙ (CẬP NHẬT MỚI) ---
+        let finalReasonBase = reasonInput;
+        if (type.startsWith("NB")) {
+            let selected = 0;
+            let sources = [];
+            document.querySelectorAll(".src-cb:checked").forEach(cb => {
+                selected += parseFloat(cb.getAttribute("data-amt"));
+                sources.push(cb.value);
             });
 
-        } catch(e) { console.error(e); alert("Lỗi kết nối!"); } 
-        finally { document.getElementById("loading").style.display = "none"; }
-    }
+            // 1. Nếu CHỌN THIẾU
+            if (selected < globalNeededTotal) {
+                return alert(`⚠️ Bạn CHƯA CHỌN ĐỦ nguồn bù!\n- Cần: ${globalNeededTotal}\n- Đã chọn: ${selected}\n👉 Vui lòng tick thêm vào danh sách.`);
+            }
+            
+            // 2. Nếu CHỌN THỪA (DƯ)
+            if (selected > globalNeededTotal) {
+                return alert(`⚠️ Bạn CHỌN THỪA nguồn bù!\n- Cần: ${globalNeededTotal}\n- Đã chọn: ${selected}\n👉 Vui lòng bỏ bớt tick.`);
+            }
 
-    async function submitRequest() {
-        const user = localStorage.getItem("empUser");
-        const type = document.getElementById("reqType").value;
-        const date = document.getElementById("reqDate").value;
-        const name = document.getElementById("dispName").innerText;
-        
-        let reason = document.getElementById("reqReason").value.trim();
-        const sourceVal = document.getElementById("reqNbSource").value;
-
-        // Nếu có chọn nguồn bù, tự động điền vào lý do
-        if ((type === "NB" || type === "NB/2") && sourceVal) {
-            reason = `[Bù cho: ${sourceVal}] ` + reason;
+            // 3. Nếu BẰNG NHAU -> OK
+            finalReasonBase = `[Bù cho: ${sources.join(", ")}] ${reasonInput}`;
         }
 
-        if (!date) return alert("Chọn ngày nghỉ!");
-        if (!confirm(`Xác nhận đăng ký nghỉ ${type} vào ngày ${date}?`)) return;
+        if (!confirm(`Xác nhận đăng ký nghỉ từ ${startStr} đến ${endStr}?\nTổng: ${globalNeededTotal} công.`)) return;
 
         const btn = document.querySelector(".btn-submit");
-        const oldText = btn.innerText;
-        btn.innerText = "Đang gửi..."; btn.disabled = true;
-
-        const payload = {
-            code: user,
-            name: name,
-            type: type,
-            date: date,
-            reason: reason 
-        };
+        btn.innerText = "Đang xử lý..."; btn.disabled = true;
 
         try {
-            await fetch(`${SCRIPT_URL}?action=submitLeaveRequest&data=` + encodeURIComponent(JSON.stringify(payload)));
-            alert("Đã gửi yêu cầu thành công!");
-            document.getElementById("reqDate").value = "";
+			// [THÊM MỚI] Check trạng thái lần cuối trước khi insert
+            const checkEmp = await _supabase.from('employees').select('status').eq('code', userCode).single();
+            if (checkEmp.data && checkEmp.data.status === 'inactive') {
+                alert("Bạn đã nghỉ việc, không thể gửi yêu cầu!");
+                logout();
+                return;
+            }
+		
+            const requests = [];
+            const startDate = new Date(startStr);
+            const endDate = new Date(endStr);
+            const valPerDay = type.includes("/2") ? 0.5 : 1.0;
+
+            for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                const dateISO = d.toISOString().split('T')[0];
+                requests.push({
+                    emp_code: userCode, emp_name: empName, type: type, date: dateISO,
+                    reason: finalReasonBase, status: 'Chờ duyệt', val: valPerDay
+                });
+            }
+
+            const { error } = await _supabase.from('leave_requests').insert(requests);
+
+            if (error) throw error;
+
+            alert("✅ Đã gửi thành công " + requests.length + " yêu cầu.");
+            document.getElementById("reqStartDate").value = "";
+            document.getElementById("reqEndDate").value = "";
             document.getElementById("reqReason").value = "";
-            document.getElementById("reqNbSource").value = ""; // Reset
-            loadData(user);
-        } catch(e) {
-            alert("Lỗi khi gửi!");
-        } finally {
-            btn.innerText = oldText; btn.disabled = false;
-        }
+            document.getElementById("calcInfo").style.display = "none";
+            document.querySelectorAll(".src-cb").forEach(cb => cb.checked = false);
+            
+            loadData(userCode);
+
+        } catch(e) { console.error(e); alert("Lỗi: " + e.message); } 
+        finally { btn.innerText = "Gửi Yêu Cầu"; btn.disabled = false; }
     }
 
-    // Hàm Hủy Yêu Cầu
-    async function cancelRequest(dateStr, typeStr) {
-        if(!confirm("Bạn chắc chắn muốn hủy yêu cầu này?")) return;
-        
-        const user = localStorage.getItem("empUser");
+    async function cancelRequest(id) {
+        if(!confirm("Hủy yêu cầu này?")) return;
         document.getElementById("loading").style.display = "block";
-        
+        const userCode = sessionStorage.getItem("empUser");
         try {
-            const res = await fetch(`${SCRIPT_URL}?action=cancelLeaveRequest&code=${user}&date=${encodeURIComponent(dateStr)}&type=${encodeURIComponent(typeStr)}`);
-            const json = await res.json();
-            alert(json.message);
-            loadData(user); // Tải lại danh sách
-        } catch(e) {
-            alert("Lỗi kết nối!");
-        } finally {
-            document.getElementById("loading").style.display = "none";
-        }
+            const { error } = await _supabase.from('leave_requests').delete().eq('id', id);
+            if (error) throw error;
+            alert("Đã hủy!"); loadData(userCode);
+        } catch(e) { alert("Lỗi: " + e.message); }
+        document.getElementById("loading").style.display = "none";
     }
 
-    function toggleReasonType() {
-        const type = document.getElementById("reqType").value;
-        const group = document.getElementById("groupNbSource");
-        if (type === "NB" || type === "NB/2") {
-            group.style.display = "block";
-        } else {
-            group.style.display = "none";
-            document.getElementById("reqNbSource").value = ""; 
-        }
+    function setupRealtimeListener(userCode) {
+        _supabase.channel('employee-updates')
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'leave_requests', filter: `emp_code=eq.${userCode}` }, 
+            (payload) => {
+                const status = payload.new.status;
+                let msg = status === 'Đã duyệt' ? "✅ Đơn nghỉ đã được duyệt!" : (status === 'Từ chối' ? "❌ Đơn nghỉ bị từ chối." : "🔔 Trạng thái đơn thay đổi.");
+                playNotificationSound(); showToastNotification(msg); loadData(userCode);
+            })
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'leave_balance', filter: `emp_code=eq.${userCode}` }, 
+            () => { playNotificationSound(); showToastNotification("💰 Số dư phép thay đổi!"); loadData(userCode); })
+            .subscribe();
     }
+
+    function playNotificationSound() {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator(); const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = "sine"; osc.frequency.setValueAtTime(800, ctx.currentTime);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+        osc.start(); osc.stop(ctx.currentTime + 0.5);
+    }
+
+    function showToastNotification(mess) {
+        const div = document.createElement("div");
+        div.style.position = "fixed"; div.style.top = "20px"; div.style.right = "20px";
+        div.style.background = "#2c3e50"; div.style.color = "white"; div.style.padding = "15px 25px";
+        div.style.borderRadius = "50px"; div.style.boxShadow = "0 4px 15px rgba(0,0,0,0.2)";
+        div.style.zIndex = "9999"; div.style.fontWeight = "bold"; div.style.animation = "slideInRight 0.5s forwards";
+        div.innerText = mess; document.body.appendChild(div);
+        setTimeout(() => { div.style.opacity = "0"; div.style.transition="opacity 0.5s"; setTimeout(()=>div.remove(),500); }, 5000);
+    }
+    
+    const styleSheet = document.createElement("style");
+    styleSheet.innerText = `@keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }`;
+    document.head.appendChild(styleSheet);
 </script>
 
 </body>
