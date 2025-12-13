@@ -130,7 +130,7 @@
 
             <div class="form-group">
                 <label>Lý do / Ghi chú</label>
-                <input type="text" id="reqReason" class="form-control" placeholder="Nhập lý do (VD: Về quê, Đám cưới...)">
+                <input type="text" id="reqReason" class="form-control" placeholder="Nhập lý do/ Ghi chú">
             </div>
             
             <button onclick="submitRequest()" class="btn-submit">Gửi Yêu Cầu</button>
@@ -401,7 +401,7 @@
                                 calcTotalDays(); 
                             }
                         };
-                        const valDisplay = remaining < 1 ? `Còn: ${remaining} (Ít)` : `Còn: ${remaining}`;
+                        const valDisplay = remaining < 1 ? `(Còn: ${remaining} ngày)` : `(Còn: ${remaining} ngày)`;
                         const colorStyle = remaining < 1 ? "color:#e67e22;" : "color:#27ae60;";
 
                         item.innerHTML = `
@@ -417,7 +417,7 @@
                     }
                 });
             } else {
-                listDiv.innerHTML = '<div style="padding:15px; text-align:center; color:#999;">Bạn không có ngày công bù nào khả dụng.</div>';
+                listDiv.innerHTML = '<div style="padding:15px; text-align:center; color:#999;">Bạn không có ngày công bù nào.</div>';
             }
             
             // Lưu dữ liệu vào biến toàn cục
@@ -550,22 +550,40 @@
         }
     }
 
+    // --- HÀM CẬP NHẬT TRẠNG THÁI CHỌN NGUỒN (ĐÃ SỬA) ---
     function updateSourceStatus(needed) {
         const sumDiv = document.getElementById("sourceSummary");
         if(needed === 0) { sumDiv.innerText=""; return; }
 
         let selected = 0;
-        document.querySelectorAll(".src-cb:checked").forEach(cb => {
+        const checkedBoxes = document.querySelectorAll(".src-cb:checked");
+        checkedBoxes.forEach(cb => {
             selected += parseFloat(cb.getAttribute("data-amt"));
         });
+        
+        // Làm tròn số để tránh lỗi thập phân
+        selected = parseFloat(selected.toFixed(2));
+        needed = parseFloat(needed.toFixed(2));
 
+        // LOGIC MỚI:
+        // 1. Nếu bằng nhau -> Tuyệt vời
         if(selected === needed) {
             sumDiv.innerHTML = `✅ Đã chọn: ${selected} / Cần: ${needed} (Hợp lệ)`;
             sumDiv.className = "source-summary status-ok";
-        } else if (selected > needed) {
-            sumDiv.innerHTML = `⚠️ Dư: ${selected} / Cần: ${needed} (Bỏ bớt đi)`;
+        } 
+        // 2. Nếu chọn lớn hơn, NHƯNG chỉ chọn đúng 1 nguồn (VD: Nguồn 1.0 bù cho 0.5) -> Hợp lệ (Tự cắt)
+        else if (checkedBoxes.length === 1 && selected > needed) {
+            const remain = selected - needed;
+            sumDiv.innerHTML = `✂️ Tự động cắt: Dùng ${needed}, còn dư ${remain} (Hợp lệ)`;
+            sumDiv.className = "source-summary status-ok"; // Chuyển thành màu xanh
+        }
+        // 3. Nếu chọn nhiều nguồn mà vẫn dư (VD: 0.5 + 0.5 bù cho 0.5) -> Báo dư thừa
+        else if (selected > needed) {
+            sumDiv.innerHTML = `⚠️ Dư: ${selected} / Cần: ${needed} (Vui lòng bỏ bớt)`;
             sumDiv.className = "source-summary status-lack";
-        } else {
+        } 
+        // 4. Thiếu
+        else {
             sumDiv.innerHTML = `❌ Thiếu: ${selected} / Cần: ${needed} (Chọn thêm)`;
             sumDiv.className = "source-summary status-lack";
         }
@@ -599,27 +617,44 @@
             return alert(`Số dư Bù (${bTotal}) không đủ để nghỉ ${globalNeededTotal} công.`);
         }
 
-        // --- KIỂM TRA LOGIC NGUỒN BÙ (CẬP NHẬT MỚI) ---
+        // --- KIỂM TRA LOGIC NGUỒN BÙ (ĐÃ CẬP NHẬT TỰ ĐỘNG CHIA) ---
         let finalReasonBase = reasonInput;
+        
         if (type.startsWith("NB")) {
             let selected = 0;
             let sources = [];
-            document.querySelectorAll(".src-cb:checked").forEach(cb => {
+            const checkedBoxes = document.querySelectorAll(".src-cb:checked");
+
+            checkedBoxes.forEach(cb => {
                 selected += parseFloat(cb.getAttribute("data-amt"));
                 sources.push(cb.value);
             });
+            
+            // Làm tròn
+            selected = parseFloat(selected.toFixed(2));
 
-            // 1. Nếu CHỌN THIẾU
+            // 1. Kiểm tra THIẾU
             if (selected < globalNeededTotal) {
                 return alert(`⚠️ Bạn CHƯA CHỌN ĐỦ nguồn bù!\n- Cần: ${globalNeededTotal}\n- Đã chọn: ${selected}\n👉 Vui lòng tick thêm vào danh sách.`);
             }
             
-            // 2. Nếu CHỌN THỪA (DƯ)
+            // 2. Kiểm tra DƯ (Logic mới)
+            let isAutoSplit = false;
+
+            // Nếu chọn nhiều hơn cần thiết
             if (selected > globalNeededTotal) {
-                return alert(`⚠️ Bạn CHỌN THỪA nguồn bù!\n- Cần: ${globalNeededTotal}\n- Đã chọn: ${selected}\n👉 Vui lòng bỏ bớt tick.`);
+                // Chỉ cho phép dư nếu chọn đúng 1 nguồn (Hệ thống tự cắt 0.5 từ 1.0)
+                if (checkedBoxes.length === 1) {
+                    isAutoSplit = true; // Hợp lệ
+                } else {
+                    // Nếu chọn nhiều nguồn cộng lại mà bị dư -> Bắt buộc bỏ bớt
+                    return alert(`⚠️ Bạn CHỌN THỪA nguồn bù!\n- Cần: ${globalNeededTotal}\n- Đã chọn: ${selected}\n👉 Vui lòng bỏ bớt tick.`);
+                }
             }
 
-            // 3. Nếu BẰNG NHAU -> OK
+            // 3. Tạo ghi chú nguồn
+            // Dù nguồn là 1.0, nhưng khi lưu vào request, hệ thống chỉ lưu giá trị val = 0.5 (theo globalNeededTotal)
+            // Lần sau loadData chạy, nó sẽ lấy: Nguồn (1.0) - Đã dùng (0.5) = Còn dư 0.5
             finalReasonBase = `[Bù cho: ${sources.join(", ")}] ${reasonInput}`;
         }
 
