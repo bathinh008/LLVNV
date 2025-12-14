@@ -387,33 +387,96 @@
         } else { btnContainer.style.display = "none"; }
 
         displayData.forEach(h => {
-            let statusCls = "st-Cho";
-            let btnCancel = "";
-            let stText = h.status;
+			// 1. Xử lý Ngày tháng
+			const d = new Date(h.date);
+			const dateStr = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
 
-            if(h.status === "Đã duyệt") statusCls = "st-Duyet";
-            if(h.status === "Từ chối") { statusCls = "st-TuChoi"; stText = "Đã từ chối"; }
-            if(h.status === "Chờ duyệt") btnCancel = `<button class="btn-cancel" onclick="cancelRequest(${h.id})">Hủy Yêu Cầu</button>`;
+			// 2. Làm sạch lý do
+			//let cleanReason = h.reason || '';
+			//cleanReason = cleanReason.replace(/\[REF:\d+\]/g, "").replace(/\[Bù cho:.*?\]/g, "").trim(); 
+			//if (cleanReason === "" || cleanReason === "[]") cleanReason = "-";
+			// 2.1. Làm sạch lý do cơ bản (Xóa REF)
+			let cleanReason = h.reason || '';
+			cleanReason = cleanReason.replace(/\[REF:\d+\]/g, "").trim();
 
-            const d = new Date(h.date);
-            const dateStr = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-            
-            // Làm sạch lý do hiển thị (ẩn cái ID [REF:...] đi cho đẹp)
-            let cleanReason = h.reason || '';
-            cleanReason = cleanReason.replace(/\[REF:\d+\]/g, "").trim();
+			// 2.2. [MỚI] Định dạng lại chuỗi "Bù cho"
+			const buChoMatch = cleanReason.match(/\[Bù cho:.*?\((.*)\)\s*\](.*)/);
 
-            list.innerHTML += `
-                <li class="history-item ${statusCls}">
-                    <div>
-                        <span class="h-date">${dateStr} <span class="h-type">${h.type}</span></span>
-                        <span style="font-size:13px; color:#555;">${cleanReason}</span>
-                    </div>
-                    <div style="text-align:right;">
-                        <span class="h-status">${stText}</span><br>
-                        ${btnCancel}
-                    </div>
-                </li>`;
-        });
+			if (buChoMatch) {
+				// buChoMatch[1] = "Test(11/11/2025)" (Nội dung trong ngoặc sau ngày tháng)
+				// buChoMatch[2] = " test" (Phần dư phía sau)
+				
+				const source = buChoMatch[1].trim(); 
+				const userNote = buChoMatch[2].trim();
+
+				if (userNote) {
+					cleanReason = `[Bù cho: ${source}], lý do: ${userNote}`;
+				} else {
+					cleanReason = `[Bù cho: ${source}]`;
+				}
+			}
+
+			// 2.3. Xử lý nếu rỗng
+			if (cleanReason === "" || cleanReason === "[]") cleanReason = "-";
+
+			// 3. Xử lý Style cho LOẠI NGHỈ (P/NB)
+			let baseTypeStyle = "padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold; margin-left:5px;";
+			let typeStyle = `background:#f3f4f6; color:#4b5563; border:1px solid #d1d5db; ${baseTypeStyle}`; // Mặc định
+
+			if (h.type && h.type.includes("P")) {
+				typeStyle = `background:#fce4ec; color:#ad1457; border:1px solid #f8bbd0; ${baseTypeStyle}`;
+			}
+			if (h.type && h.type.includes("NB")) {
+				typeStyle = `background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; ${baseTypeStyle}`;
+			}
+
+			// 4. Xử lý TRẠNG THÁI (Status) - Gộp logic phần 2 và phần 5 của bạn lại
+			let statusStyle = "background:#f3f4f6; color:#4b5563; border:1px solid #d1d5db"; // Mặc định xám
+			let statusIcon = "⏳";
+			let stText = h.status;
+			let btnCancel = "";
+
+			// -- Logic màu sắc trạng thái --
+			if (h.status === 'Đã duyệt') { 
+				statusStyle = "background:#dcfce7; color:#166534; border:1px solid #bbf7d0"; 
+				statusIcon = "✅";
+			}
+			else if (h.status === 'Từ chối' || (h.status && h.status.includes('Hủy'))) { 
+				statusStyle = "background:#fee2e2; color:#991b1b; border:1px solid #fca5a5"; 
+				statusIcon = "❌";
+				if (h.status === "Từ chối") stText = "Đã từ chối";
+			} 
+			else { // Chờ duyệt
+				statusStyle = "background:#ffedd5; color:#9a3412; border:1px solid #fed7aa";
+				// Chỉ hiện nút hủy khi đang chờ
+				//btnCancel = `<button class="btn-cancel" onclick="cancelRequest(${h.id})" style="margin-top:5px; font-size:11px; padding:3px 8px; background:#fff; border:1px solid #e74c3c; color:#e74c3c; border-radius:4px; cursor:pointer;">Hủy đơn</button>`;
+				btnCancel = `<button class="btn-cancel" onclick="cancelRequest(${h.id})">Hủy Yêu Cầu</button>`;
+			}
+
+			// CSS chung cho badge trạng thái
+			let finalStatusStyle = `padding:4px 8px; border-radius:20px; font-size:11px; font-weight:600; display:inline-block; ${statusStyle}`;
+
+			// 5. Render HTML
+			list.innerHTML += `
+				<li class="history-item" style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #eee;">
+					<div>
+						<div style="font-weight:600; font-size:14px; margin-bottom:2px;">
+							${dateStr} 
+							<span style="${typeStyle}">${h.type}</span>
+						</div>
+						<div style="font-size:13px; color:#666; font-style:italic;">
+							${cleanReason}
+						</div>
+					</div>
+					<div style="text-align:right; min-width:100px;">
+						<span style="${finalStatusStyle}">
+							${statusIcon} ${stText}
+						</span>
+						<br>
+						${btnCancel}
+					</div>
+				</li>`;
+		});
     }
 
     // --- HÀM TÍNH TOÁN ---
