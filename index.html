@@ -155,9 +155,8 @@
     
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     
-    // BIẾN LƯU TRỮ TẠM
-    let globalNeededTotal = 0; // Tổng số công cần
-	let globalHistoryData = []; // [THÊM MỚI] Biến lưu full lịch sử
+    let globalNeededTotal = 0; 
+	let globalHistoryData = [];
 
     // --- KHỞI TẠO ---
     const savedUser = sessionStorage.getItem("empUser");
@@ -176,25 +175,16 @@
 
         document.getElementById("loading").style.display = "block";
         
-        // [THAY ĐỔI] Lấy thêm cột 'status' và 'name'
         const { data, error } = await _supabase
             .from('employees')
-            .select('code, name, status') // Lấy thêm status
+            .select('code, name, status')
             .eq('code', userCode)
             .single();
             
         document.getElementById("loading").style.display = "none";
 
-        if (error || !data) { 
-            alert("Mã nhân viên không tồn tại!"); 
-            return; 
-        }
-
-        // [THÊM MỚI] Kiểm tra trạng thái hoạt động
-        if (data.status === 'inactive') {
-            alert(`Tài khoản của nhân viên ${data.name} đã bị vô hiệu hóa (Đã nghỉ việc).`);
-            return;
-        }
+        if (error || !data) { alert("Mã nhân viên không tồn tại!"); return; }
+        if (data.status === 'inactive') { alert(`Tài khoản đã bị vô hiệu hóa.`); return; }
 
         sessionStorage.setItem("empUser", userCode);
         document.getElementById("loginScreen").style.display = "none";
@@ -203,36 +193,22 @@
         setupRealtimeListener(userCode);
     }
 
-    function logout() {
-        sessionStorage.removeItem("empUser");
-        location.reload();
-    }
+    function logout() { sessionStorage.removeItem("empUser"); location.reload(); }
 
-    // --- TẢI DỮ LIỆU ---
-    // --- TẢI DỮ LIỆU (ĐÃ CẬP NHẬT LOGIC HẾT HẠN) ---
+    // --- TẢI DỮ LIỆU (ĐÃ SỬA LỖI TÍNH TOÁN VÀ ĐỒNG BỘ) ---
     async function loadData(userCode) {
         document.getElementById("loading").style.display = "block";
         try {
-            // BƯỚC 1: Lấy tuần làm việc mới nhất
-            const weekRes = await _supabase.from('weeks')
-                .select('week_start')
-                .eq('group_name', 'Gia dụng') 
-                .order('week_start', { ascending: false })
-                .limit(1)
-                .single();
-
-            // Xác định ngày hiện tại của hệ thống và Năm mục tiêu
+            // Lấy dữ liệu tuần & nhân viên (Giữ nguyên)
+            const weekRes = await _supabase.from('weeks').select('week_start').eq('group_name', 'Gia dụng').order('week_start', { ascending: false }).limit(1).single();
             let systemCurrentDate = new Date(); 
             let targetYear = new Date().getFullYear(); 
-
             if (weekRes.data && weekRes.data.week_start) {
-                systemCurrentDate = new Date(weekRes.data.week_start); // Ngày mốc để so sánh hạn
+                systemCurrentDate = new Date(weekRes.data.week_start);
                 targetYear = systemCurrentDate.getFullYear();
             }
 
-            console.log("Hệ thống đang chạy theo dữ liệu tuần:", weekRes.data?.week_start);
-
-            // BƯỚC 2: Tải các dữ liệu còn lại
+            // Tải dữ liệu từ DB
             const [empRes, balRes, histRes, sourceRes] = await Promise.all([
                 _supabase.from('employees').select('*').eq('code', userCode).single(),
                 _supabase.from('leave_balance').select('*').eq('emp_code', userCode).eq('year', targetYear).maybeSingle(), 
@@ -240,151 +216,103 @@
                 _supabase.from('supplemental_leave').select('*').eq('emp_code', userCode).eq('type', 'NB').gt('amount', 0)
             ]);
 
-			// [THÊM MỚI] CHECK LẠI TRẠNG THÁI NGAY KHI TẢI
+            // Hiển thị thông tin NV
             if (empRes.data) {
-                if (empRes.data.status === 'inactive') {
-                    alert("Tài khoản của bạn đã bị vô hiệu hóa.");
-                    logout(); // Tự động đăng xuất luôn
-                    return;
-                }
-                
+                if (empRes.data.status === 'inactive') { logout(); return; }
                 document.getElementById("dispName").innerText = empRes.data.name;
                 document.getElementById("dispRole").innerText = empRes.data.role || "Nhân viên";
             }
 
-            // 2. Hiển thị thông tin nhân viên
-            if (empRes.data) {
-                document.getElementById("dispName").innerText = empRes.data.name;
-                document.getElementById("dispRole").innerText = empRes.data.role || "Nhân viên";
-            }
-
-            // 3. XỬ LÝ SỐ DƯ (LOGIC MỚI Ở ĐÂY)
+            // XỬ LÝ SỐ DƯ (Giữ nguyên logic cũ)
             let pOld = 0, pNew = 0, bOld = 0, bNew = 0;
-
             if (balRes.data) {
-                pNew = Number(balRes.data.pn_val) || 0;     
-                bNew = Number(balRes.data.nb_val) || 0;     
-                pOld = Number(balRes.data.pn_old_val) || 0; 
-                bOld = Number(balRes.data.nb_old_val) || 0; 
+                pNew = Number(balRes.data.pn_val) || 0; bNew = Number(balRes.data.nb_val) || 0;     
+                pOld = Number(balRes.data.pn_old_val) || 0; bOld = Number(balRes.data.nb_old_val) || 0; 
             }
-
-            // --- ĐOẠN CODE THÊM MỚI ĐỂ XỬ LÝ HẾT HẠN ---
             if (empRes.data) {
-                // Lấy ngày hết hạn từ thông tin nhân viên
-                // Lưu ý: Cần đảm bảo trong bảng 'employees' có cột 'pn_expire' và 'nb_expire'
                 const pnExpireDate = empRes.data.pn_expire ? new Date(empRes.data.pn_expire) : null;
                 const nbExpireDate = empRes.data.nb_expire ? new Date(empRes.data.nb_expire) : null;
-
-                // Logic 1: Nếu tuần hiện tại > hạn phép năm -> Phép năm cũ = 0
-                if (pnExpireDate && systemCurrentDate > pnExpireDate) {
-                    console.log(`Đã quá hạn phép năm (${empRes.data.pn_expire}). Reset phép cũ về 0.`);
-                    pOld = 0;
-                }
-
-                // Logic 2: Nếu tuần hiện tại > hạn nghỉ bù -> Bù năm cũ = 0
-                if (nbExpireDate && systemCurrentDate > nbExpireDate) {
-                    console.log(`Đã quá hạn nghỉ bù (${empRes.data.nb_expire}). Reset bù cũ về 0.`);
-                    bOld = 0;
-                }
+                if (pnExpireDate && systemCurrentDate > pnExpireDate) pOld = 0;
+                if (nbExpireDate && systemCurrentDate > nbExpireDate) bOld = 0;
             }
-            // ---------------------------------------------
 
-            // Cập nhật nhãn hiển thị
             document.getElementById("currentYearDisp").innerText = targetYear;
             document.getElementById("lblPOld").innerText = `Phép ${targetYear - 1}`;
             document.getElementById("lblPNew").innerText = `Phép ${targetYear}`;
             document.getElementById("lblBOld").innerText = `Bù ${targetYear - 1}`;
             document.getElementById("lblBNew").innerText = `Bù ${targetYear}`;
 
-            // 4. TRỪ ĐI CÁC ĐƠN "CHỜ DUYỆT"
-            let pendingP = 0;
-            let pendingNB = 0;
-
+            // TÍNH TOÁN SỐ DƯ HIỂN THỊ
+            let pendingP = 0, pendingNB = 0;
             if (histRes.data) {
                 histRes.data.forEach(req => {
                     if (req.status === 'Chờ duyệt') {
-                        let val = req.val || (req.type.includes("/2") ? 0.5 : 1.0);
+                        // [FIX] Ưu tiên lấy giá trị val thực tế từ DB
+                        let val = req.val !== null ? req.val : (req.type.includes("/2") ? 0.5 : 1.0);
                         if (req.type.startsWith("P")) pendingP += val;
                         if (req.type.startsWith("NB")) pendingNB += val;
                     }
                 });
             }
 
-            // Logic trừ hiển thị (không thay đổi)
-            let displayPOld = pOld;
-            let displayPNew = pNew;
-            if (displayPOld >= pendingP) {
-                displayPOld -= pendingP;
-            } else {
-                let remain = pendingP - displayPOld;
-                displayPOld = 0;
-                displayPNew = Math.max(0, displayPNew - remain);
-            }
+            let displayPOld = pOld, displayPNew = pNew;
+            if (displayPOld >= pendingP) displayPOld -= pendingP;
+            else { let remain = pendingP - displayPOld; displayPOld = 0; displayPNew = Math.max(0, displayPNew - remain); }
 
-            let displayBOld = bOld;
-            let displayBNew = bNew;
-            if (displayBOld >= pendingNB) {
-                displayBOld -= pendingNB;
-            } else {
-                let remain = pendingNB - displayBOld;
-                displayBOld = 0;
-                displayBNew = Math.max(0, displayBNew - remain);
-            }
+            let displayBOld = bOld, displayBNew = bNew;
+            if (displayBOld >= pendingNB) displayBOld -= pendingNB;
+            else { let remain = pendingNB - displayBOld; displayBOld = 0; displayBNew = Math.max(0, displayBNew - remain); }
 
-            // 5. GÁN SỐ LIỆU LÊN GIAO DIỆN
-            /*document.getElementById("valPOld").innerText = parseFloat(displayPOld.toFixed(2));
-            document.getElementById("valPNew").innerText = parseFloat(displayPNew.toFixed(2));
-            document.getElementById("valBOld").innerText = parseFloat(displayBOld.toFixed(2));
-            document.getElementById("valBNew").innerText = parseFloat(displayBNew.toFixed(2));*/
+            document.getElementById("valPOld").innerText = parseFloat(displayPOld.toFixed(1));
+            document.getElementById("valPNew").innerText = parseFloat(displayPNew.toFixed(1));
+            document.getElementById("valBOld").innerText = parseFloat(displayBOld.toFixed(1));
+            document.getElementById("valBNew").innerText = parseFloat(displayBNew.toFixed(1));
+
+            // Ẩn hiện card năm cũ
+            const cardPOld = document.getElementById("cardPOld"); if (cardPOld) cardPOld.style.display = (displayPOld > 0) ? '' : 'none';
+            const cardBOld = document.getElementById("cardBOld"); if (cardBOld) cardBOld.style.display = (displayBOld > 0) ? '' : 'none';
             
-			// Gán giá trị hiển thị
-			document.getElementById("valPOld").innerText = parseFloat(displayPOld.toFixed(1));
-			document.getElementById("valPNew").innerText = parseFloat(displayPNew.toFixed(1));
-			document.getElementById("valBOld").innerText = parseFloat(displayBOld.toFixed(1));
-			document.getElementById("valBNew").innerText = parseFloat(displayBNew.toFixed(1));
-
-			// --- LOGIC ẨN/HIỆN THẺ NĂM CŨ KHI GIÁ TRỊ = 0 ---
-			
-			// Ẩn/Hiện Phép Năm Cũ
-			const cardPOld = document.getElementById("cardPOld");
-			if (cardPOld) {
-				// Nếu > 0 thì hiển thị (reset style), nếu = 0 thì ẩn đi
-				cardPOld.style.display = (displayPOld > 0) ? '' : 'none';
-			}
-			
-			// Ẩn/Hiện Bù Năm Cũ
-			const cardBOld = document.getElementById("cardBOld");
-			if (cardBOld) {
-				// Nếu > 0 thì hiển thị (reset style), nếu = 0 thì ẩn đi
-				cardBOld.style.display = (displayBOld > 0) ? '' : 'none';
-			}
-			
             const grandTotal = displayPOld + displayPNew + displayBOld + displayBNew;
             document.getElementById("valTotal").innerText = parseFloat(grandTotal.toFixed(2));
-            
-            if (pendingP > 0 || pendingNB > 0) {
-                document.getElementById("valTotal").style.color = "#f39c12"; 
-                document.getElementById("valTotal").title = `Đang có ${pendingP + pendingNB} công chờ duyệt`;
-            } else {
-                document.getElementById("valTotal").style.color = "#d35400";
-            }
+            document.getElementById("valTotal").style.color = (pendingP > 0 || pendingNB > 0) ? "#f39c12" : "#d35400";
 
-            // 6. RENDER CHECKLIST (Giữ nguyên phần còn lại)
+            // --- [PHẦN SỬA CHÍNH] RENDER CHECKLIST & TÍNH TOÁN ĐÃ DÙNG ---
             const listDiv = document.getElementById("sourceList");
             listDiv.innerHTML = "";
             
             if(sourceRes.data && sourceRes.data.length > 0) {
                 sourceRes.data.forEach(src => {
                     let usedAmount = 0;
+                    
+                    // Tạo các biến để đối chiếu
                     const d = new Date(src.date);
-                    const dStr = `${d.getDate()}/${d.getMonth()+1}`;
-                    const signature = `${dStr} (${src.reason})`;
+                    const day = d.getDate();
+                    const month = d.getMonth() + 1;
+                    
+                    // 1. Dạng chuẩn: "8/12"
+                    const dStr1 = `${day}/${month}`; 
+                    // 2. Dạng có số 0: "08/12" (đề phòng bên Sắp ca lưu dạng này)
+                    const dStr2 = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}`;
+                    
+                    const signatureText = `(${src.reason})`; 
+                    const signatureID = `[REF:${src.id}]`; 
 
                     if (histRes.data) {
                         histRes.data.forEach(req => {
-                            if (req.status !== 'Từ chối' && req.reason && req.reason.includes(signature)) {
-                                if (req.type === 'NB/2' || req.type.includes("0.5")) usedAmount += 0.5;
-                                else if (req.type === 'NB') usedAmount += 1.0;
+                            if (req.status !== 'Từ chối' && req.reason) {
+                                // Logic kiểm tra thông minh hơn:
+                                // - Có ID (chính xác nhất)
+                                // - Hoặc có chứa ngày tháng (dạng 1 hoặc dạng 2) VÀ là đơn nghỉ bù
+                                const hasID = req.reason.includes(signatureID);
+                                const hasDate = (req.reason.includes(dStr1) || req.reason.includes(dStr2));
+                                const isComp = req.type.startsWith("NB") || req.reason.toLowerCase().includes("bù");
+
+                                if (hasID || (hasDate && isComp)) {
+                                    // [QUAN TRỌNG] Lấy đúng số lượng đã trừ trong DB
+                                    // Nếu DB có cột val (ví dụ 0.5) thì lấy 0.5. Nếu không thì mới đoán theo Type.
+                                    let valUsed = req.val !== null ? req.val : (req.type.includes("/2") ? 0.5 : 1.0);
+                                    usedAmount += valUsed;
+                                }
                             }
                         });
                     }
@@ -403,12 +331,15 @@
                         };
                         const valDisplay = remaining < 1 ? `(Còn: ${remaining} ngày)` : `(Còn: ${remaining} ngày)`;
                         const colorStyle = remaining < 1 ? "color:#e67e22;" : "color:#27ae60;";
+                        
+                        // Hiển thị ngày dạng chuẩn để người dùng dễ nhìn
+                        const displayDate = `${String(day).padStart(2,'0')}/${String(month).padStart(2,'0')}`;
 
                         item.innerHTML = `
                             <div style="display:flex; align-items:center;">
-                                <input type="checkbox" class="src-cb" value="${signature}" data-amt="${remaining}" onchange="calcTotalDays()">
+                                <input type="checkbox" class="src-cb" value="${src.id}" data-text="${displayDate} (${src.reason})" data-amt="${remaining}" onchange="calcTotalDays()">
                                 <div class="source-info">
-                                    <span class="source-date">${dStr} - ${src.reason}</span>
+                                    <span class="source-date">${displayDate} - ${src.reason}</span>
                                     <span class="source-val" style="${colorStyle}">${valDisplay}</span>
                                 </div>
                             </div>
@@ -420,20 +351,15 @@
                 listDiv.innerHTML = '<div style="padding:15px; text-align:center; color:#999;">Bạn không có ngày công bù nào.</div>';
             }
             
-            // Lưu dữ liệu vào biến toàn cục
             globalHistoryData = histRes.data || [];
-            // Gọi hàm render với tham số false (nghĩa là chưa xem full, chỉ hiện 5)
             renderHistory(globalHistoryData, false);
             calcTotalDays();
 
-        } catch(e) { 
-            console.error(e); 
-            alert("Lỗi tải dữ liệu: " + e.message);
-        } finally { 
-            document.getElementById("loading").style.display = "none"; 
-        }
+        } catch(e) { console.error(e); alert("Lỗi tải dữ liệu: " + e.message);
+        } finally { document.getElementById("loading").style.display = "none"; }
     }
 
+    // --- GIỮ NGUYÊN HÀM RENDER HISTORY ---
     function renderHistory(data, isFullView) {
         const list = document.getElementById("historyList");
         const btnContainer = document.getElementById("viewMoreContainer");
@@ -445,37 +371,21 @@
             return;
         }
 
-        // --- CẤU HÌNH LOGIC HIỂN THỊ ---
         let displayData = data;
         const limit = 5;
-        
-        // Style chung cho nút bấm (để đồng bộ giao diện)
         const btnStyle = "background: white; border: 1px solid #0078d4; color: #0078d4; padding: 8px 15px; border-radius: 20px; cursor: pointer; font-size: 13px;";
 
         if (data.length > limit) {
-            btnContainer.style.display = "block"; // Luôn hiện container nếu > 5 dòng
-
+            btnContainer.style.display = "block";
             if (!isFullView) {
-                // TRƯỜNG HỢP 1: CHƯA XEM FULL -> Cắt 5 dòng, hiện nút Xem thêm
                 displayData = data.slice(0, limit);
-                btnContainer.innerHTML = `
-                    <button onclick="renderHistory(globalHistoryData, true)" style="${btnStyle}">
-                        ↓ Xem toàn bộ lịch sử cũ hơn (${data.length - limit} còn lại)
-                    </button>`;
+                btnContainer.innerHTML = `<button onclick="renderHistory(globalHistoryData, true)" style="${btnStyle}">↓ Xem toàn bộ lịch sử cũ hơn (${data.length - limit} còn lại)</button>`;
             } else {
-                // TRƯỜNG HỢP 2: ĐANG XEM FULL -> Hiện hết, hiện nút Thu gọn
                 displayData = data; 
-                btnContainer.innerHTML = `
-                    <button onclick="renderHistory(globalHistoryData, false)" style="${btnStyle}">
-                        ↑ Thu gọn danh sách
-                    </button>`;
+                btnContainer.innerHTML = `<button onclick="renderHistory(globalHistoryData, false)" style="${btnStyle}">↑ Thu gọn danh sách</button>`;
             }
-        } else {
-            // Ít hơn 5 dòng thì ẩn nút đi
-            btnContainer.style.display = "none";
-        }
+        } else { btnContainer.style.display = "none"; }
 
-        // --- VẼ DANH SÁCH ---
         displayData.forEach(h => {
             let statusCls = "st-Cho";
             let btnCancel = "";
@@ -487,12 +397,16 @@
 
             const d = new Date(h.date);
             const dateStr = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+            
+            // Làm sạch lý do hiển thị (ẩn cái ID [REF:...] đi cho đẹp)
+            let cleanReason = h.reason || '';
+            cleanReason = cleanReason.replace(/\[REF:\d+\]/g, "").trim();
 
             list.innerHTML += `
                 <li class="history-item ${statusCls}">
                     <div>
                         <span class="h-date">${dateStr} <span class="h-type">${h.type}</span></span>
-                        <span style="font-size:13px; color:#555;">${h.reason || ''}</span>
+                        <span style="font-size:13px; color:#555;">${cleanReason}</span>
                     </div>
                     <div style="text-align:right;">
                         <span class="h-status">${stText}</span><br>
@@ -510,7 +424,6 @@
         const infoDiv = document.getElementById("calcInfo");
         const groupNb = document.getElementById("groupNbSource");
         
-        // 1. Ẩn/Hiện Checklist
         if (type.startsWith("NB")) {
             groupNb.style.display = "block";
         } else {
@@ -518,20 +431,15 @@
             document.querySelectorAll(".src-cb").forEach(cb => cb.checked = false); 
         }
 
-        // 2. Tính số ngày
         if (!startStr) {
-            infoDiv.style.display = "none";
-            globalNeededTotal = 0;
-            updateSourceStatus(0);
-            return;
+            infoDiv.style.display = "none"; globalNeededTotal = 0; updateSourceStatus(0); return;
         }
 
         const d1 = new Date(startStr);
         const d2 = endStr ? new Date(endStr) : new Date(startStr);
 
         if (d2 < d1) {
-            infoDiv.style.display = "block"; infoDiv.innerText = "⚠️ Ngày kết thúc không được nhỏ hơn ngày bắt đầu!"; infoDiv.style.color = "red";
-            globalNeededTotal = 0; return;
+            infoDiv.style.display = "block"; infoDiv.innerText = "⚠️ Ngày kết thúc lỗi!"; infoDiv.style.color = "red"; globalNeededTotal = 0; return;
         }
 
         const diffTime = Math.abs(d2 - d1);
@@ -539,57 +447,37 @@
         const valPerDay = type.includes("/2") ? 0.5 : 1.0;
         globalNeededTotal = dayCount * valPerDay;
 
-        // 3. Hiển thị
         infoDiv.style.display = "block";
         infoDiv.style.color = "#0078d4";
         infoDiv.innerHTML = `⏳ Bạn chọn <b>${dayCount} ngày</b>. <br>💰 Tổng trừ: <b>${globalNeededTotal}</b> công (${type}).`;
 
-        // 4. Update màu sắc Checklist
-        if (type.startsWith("NB")) {
-            updateSourceStatus(globalNeededTotal);
-        }
+        if (type.startsWith("NB")) updateSourceStatus(globalNeededTotal);
     }
 
-    // --- HÀM CẬP NHẬT TRẠNG THÁI CHỌN NGUỒN (ĐÃ SỬA) ---
     function updateSourceStatus(needed) {
         const sumDiv = document.getElementById("sourceSummary");
         if(needed === 0) { sumDiv.innerText=""; return; }
 
         let selected = 0;
         const checkedBoxes = document.querySelectorAll(".src-cb:checked");
-        checkedBoxes.forEach(cb => {
-            selected += parseFloat(cb.getAttribute("data-amt"));
-        });
+        checkedBoxes.forEach(cb => { selected += parseFloat(cb.getAttribute("data-amt")); });
         
-        // Làm tròn số để tránh lỗi thập phân
         selected = parseFloat(selected.toFixed(2));
         needed = parseFloat(needed.toFixed(2));
 
-        // LOGIC MỚI:
-        // 1. Nếu bằng nhau -> Tuyệt vời
         if(selected === needed) {
-            sumDiv.innerHTML = `✅ Đã chọn: ${selected} / Cần: ${needed} (Hợp lệ)`;
-            sumDiv.className = "source-summary status-ok";
-        } 
-        // 2. Nếu chọn lớn hơn, NHƯNG chỉ chọn đúng 1 nguồn (VD: Nguồn 1.0 bù cho 0.5) -> Hợp lệ (Tự cắt)
-        else if (checkedBoxes.length === 1 && selected > needed) {
+            sumDiv.innerHTML = `✅ Đã chọn: ${selected} / Cần: ${needed} (Hợp lệ)`; sumDiv.className = "source-summary status-ok";
+        } else if (checkedBoxes.length === 1 && selected > needed) {
             const remain = selected - needed;
-            sumDiv.innerHTML = `✂️ Tự động cắt: Dùng ${needed}, còn dư ${remain} (Hợp lệ)`;
-            sumDiv.className = "source-summary status-ok"; // Chuyển thành màu xanh
-        }
-        // 3. Nếu chọn nhiều nguồn mà vẫn dư (VD: 0.5 + 0.5 bù cho 0.5) -> Báo dư thừa
-        else if (selected > needed) {
-            sumDiv.innerHTML = `⚠️ Dư: ${selected} / Cần: ${needed} (Vui lòng bỏ bớt)`;
-            sumDiv.className = "source-summary status-lack";
-        } 
-        // 4. Thiếu
-        else {
-            sumDiv.innerHTML = `❌ Thiếu: ${selected} / Cần: ${needed} (Chọn thêm)`;
-            sumDiv.className = "source-summary status-lack";
+            sumDiv.innerHTML = `✂️ Tự động cắt: Dùng ${needed}, còn dư ${remain} (Hợp lệ)`; sumDiv.className = "source-summary status-ok";
+        } else if (selected > needed) {
+            sumDiv.innerHTML = `⚠️ Dư: ${selected} / Cần: ${needed} (Vui lòng bỏ bớt)`; sumDiv.className = "source-summary status-lack";
+        } else {
+            sumDiv.innerHTML = `❌ Thiếu: ${selected} / Cần: ${needed} (Chọn thêm)`; sumDiv.className = "source-summary status-lack";
         }
     }
 
-    // --- GỬI YÊU CẦU ---
+    // --- [ĐÃ SỬA] GỬI YÊU CẦU KÈM ID NGUỒN ---
     async function submitRequest() {
         const userCode = sessionStorage.getItem("empUser");
         const empName = document.getElementById("dispName").innerText;
@@ -601,7 +489,6 @@
         if (!startStr) return alert("Vui lòng chọn ngày bắt đầu!");
         if (globalNeededTotal <= 0) return alert("Ngày không hợp lệ!");
 
-        // Kiểm tra số dư
         const pTotal = parseFloat(document.getElementById("valTotal").innerText);
         const bOld = parseFloat(document.getElementById("valBOld").innerText) || 0;
         const bNew = parseFloat(document.getElementById("valBNew").innerText) || 0;
@@ -610,67 +497,45 @@
         const pNew = parseFloat(document.getElementById("valPNew").innerText) || 0;
         const pnTotal = pOld + pNew;
 
-        if (type.startsWith("P") && pnTotal < globalNeededTotal) {
-            return alert(`Số dư Phép (${pnTotal}) không đủ để nghỉ ${globalNeededTotal} công.`);
-        }
-        if (type.startsWith("NB") && bTotal < globalNeededTotal) {
-            return alert(`Số dư Bù (${bTotal}) không đủ để nghỉ ${globalNeededTotal} công.`);
-        }
+        if (type.startsWith("P") && pnTotal < globalNeededTotal) return alert(`Số dư Phép (${pnTotal}) không đủ.`);
+        if (type.startsWith("NB") && bTotal < globalNeededTotal) return alert(`Số dư Bù (${bTotal}) không đủ.`);
 
-        // --- KIỂM TRA LOGIC NGUỒN BÙ (ĐÃ CẬP NHẬT TỰ ĐỘNG CHIA) ---
         let finalReasonBase = reasonInput;
         
         if (type.startsWith("NB")) {
             let selected = 0;
-            let sources = [];
+            let sourceTexts = [];
             const checkedBoxes = document.querySelectorAll(".src-cb:checked");
 
             checkedBoxes.forEach(cb => {
                 selected += parseFloat(cb.getAttribute("data-amt"));
-                sources.push(cb.value);
+                // --- LƯU ID VÀO CHUỖI ĐỂ SAU NÀY TÌM LẠI ĐƯỢC ---
+                // Format: [REF:123] 14/12 (Trực đêm)
+                const text = cb.getAttribute("data-text");
+                const id = cb.value; 
+                sourceTexts.push(`${text} [REF:${id}]`); 
             });
             
-            // Làm tròn
             selected = parseFloat(selected.toFixed(2));
 
-            // 1. Kiểm tra THIẾU
-            if (selected < globalNeededTotal) {
-                return alert(`⚠️ Bạn CHƯA CHỌN ĐỦ nguồn bù!\n- Cần: ${globalNeededTotal}\n- Đã chọn: ${selected}\n👉 Vui lòng tick thêm vào danh sách.`);
-            }
+            if (selected < globalNeededTotal) return alert(`⚠️ Chưa chọn đủ nguồn bù!`);
             
-            // 2. Kiểm tra DƯ (Logic mới)
-            let isAutoSplit = false;
-
-            // Nếu chọn nhiều hơn cần thiết
             if (selected > globalNeededTotal) {
-                // Chỉ cho phép dư nếu chọn đúng 1 nguồn (Hệ thống tự cắt 0.5 từ 1.0)
-                if (checkedBoxes.length === 1) {
-                    isAutoSplit = true; // Hợp lệ
-                } else {
-                    // Nếu chọn nhiều nguồn cộng lại mà bị dư -> Bắt buộc bỏ bớt
-                    return alert(`⚠️ Bạn CHỌN THỪA nguồn bù!\n- Cần: ${globalNeededTotal}\n- Đã chọn: ${selected}\n👉 Vui lòng bỏ bớt tick.`);
-                }
+                if (checkedBoxes.length === 1) { /* OK */ } 
+                else { return alert(`⚠️ Chọn thừa nguồn bù!`); }
             }
 
-            // 3. Tạo ghi chú nguồn
-            // Dù nguồn là 1.0, nhưng khi lưu vào request, hệ thống chỉ lưu giá trị val = 0.5 (theo globalNeededTotal)
-            // Lần sau loadData chạy, nó sẽ lấy: Nguồn (1.0) - Đã dùng (0.5) = Còn dư 0.5
-            finalReasonBase = `[Bù cho: ${sources.join(", ")}] ${reasonInput}`;
+            finalReasonBase = `[Bù cho: ${sourceTexts.join(", ")}] ${reasonInput}`;
         }
 
-        if (!confirm(`Xác nhận đăng ký nghỉ từ ${startStr} đến ${endStr}?\nTổng: ${globalNeededTotal} công.`)) return;
+        if (!confirm(`Xác nhận đăng ký nghỉ từ ${startStr} đến ${endStr}?`)) return;
 
         const btn = document.querySelector(".btn-submit");
         btn.innerText = "Đang xử lý..."; btn.disabled = true;
 
         try {
-			// [THÊM MỚI] Check trạng thái lần cuối trước khi insert
             const checkEmp = await _supabase.from('employees').select('status').eq('code', userCode).single();
-            if (checkEmp.data && checkEmp.data.status === 'inactive') {
-                alert("Bạn đã nghỉ việc, không thể gửi yêu cầu!");
-                logout();
-                return;
-            }
+            if (checkEmp.data && checkEmp.data.status === 'inactive') { alert("Bạn đã nghỉ việc!"); logout(); return; }
 		
             const requests = [];
             const startDate = new Date(startStr);
@@ -689,7 +554,7 @@
 
             if (error) throw error;
 
-            alert("✅ Đã gửi thành công " + requests.length + " yêu cầu.");
+            alert("✅ Đã gửi thành công!");
             document.getElementById("reqStartDate").value = "";
             document.getElementById("reqEndDate").value = "";
             document.getElementById("reqReason").value = "";
@@ -719,7 +584,7 @@
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'leave_requests', filter: `emp_code=eq.${userCode}` }, 
             (payload) => {
                 const status = payload.new.status;
-                let msg = status === 'Đã duyệt' ? "✅ Đơn nghỉ đã được duyệt!" : (status === 'Từ chối' ? "❌ Đơn nghỉ bị từ chối." : "🔔 Trạng thái đơn thay đổi.");
+                let msg = status === 'Đã duyệt' ? "✅ Đã được duyệt!" : (status === 'Từ chối' ? "❌ Bị từ chối." : "🔔 Trạng thái thay đổi.");
                 playNotificationSound(); showToastNotification(msg); loadData(userCode);
             })
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'leave_balance', filter: `emp_code=eq.${userCode}` }, 
