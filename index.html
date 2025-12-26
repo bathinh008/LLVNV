@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CỔNG NHÂN VIÊN</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script src="config.js"></script>
 <style>
     /* CSS GIỮ NGUYÊN NHƯ CŨ */
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; margin: 0; padding: 0; }
@@ -150,11 +152,6 @@
 <div id="loading">Đang xử lý...</div>
 
 <script>
-    const SUPABASE_URL = 'https://renqusdcczlhrglbclhe.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlbnF1c2RjY3psaHJnbGJjbGhlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwMTIyMzUsImV4cCI6MjA4MDU4ODIzNX0.kF960FS-VvAM2rkNo9kVHfmGAkpwrmlZ5Vf9-QFiC2E';
-    
-    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    
     let globalNeededTotal = 0; 
 	let globalHistoryData = [];
 
